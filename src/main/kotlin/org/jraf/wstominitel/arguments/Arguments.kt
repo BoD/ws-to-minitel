@@ -26,7 +26,6 @@ package org.jraf.wstominitel.arguments
 
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
-import kotlinx.cli.default
 import kotlinx.cli.required
 
 class Arguments(av: Array<String>) {
@@ -34,19 +33,22 @@ class Arguments(av: Array<String>) {
 
   val url: String by parser.option(
     type = ArgType.String,
-    fullName = "url",
     shortName = "u",
     description = "WebSocket URL to connect to, e.g. wss://example.com/ws:8080"
   )
     .required()
 
-  val ttyPath: String by parser.option(
+  val input: String? by parser.option(
     type = ArgType.String,
-    fullName = "tty",
-    shortName = "t",
-    description = "Path to the Minitel's TTY device, e.g. /dev/ttyUSB0"
+    shortName = "i",
+    description = "Input where to read the keyboard, e.g. /dev/ttyUSB0. By default, the keyboard is read from stdin."
   )
-    .required()
+
+  val output: String? by parser.option(
+    type = ArgType.String,
+    shortName = "o",
+    description = "Output where to write the screen, e.g. /dev/ttyUSB1. By default, the screen is written to stdout."
+  )
 
   enum class LocalEcho {
     ON,
@@ -60,12 +62,12 @@ class Arguments(av: Array<String>) {
     description = "Send an local echo on or off command first. By default, no command is sent."
   )
 
-  val verbose: Boolean by parser.option(
-    type = ArgType.Boolean,
-    fullName = "verbose",
-    shortName = "v",
-    description = "Print verbose output"
-  ).default(false)
+  val saveFramesToFiles: String? by parser.option(
+    type = ArgType.String,
+    fullName = "save-frames",
+    shortName = "s",
+    description = "Save received frames to files in the specified directory. Files will be named frame-<frame number>.vdt."
+  )
 
   init {
     parser.parse(av)
