@@ -7,6 +7,7 @@ group = "org.jraf"
 version = "1.0.0"
 
 repositories {
+  mavenLocal()
   mavenCentral()
 }
 
@@ -27,6 +28,12 @@ dependencies {
 
   // Argument parsing
   implementation(KotlinX.cli)
+
+  // IO
+  implementation("org.jetbrains.kotlinx:kotlinx-io-core:_")
+
+  // Minitel
+  implementation("org.jraf:klibminitel:_")
 
   // Tests
   testImplementation(Kotlin.test)

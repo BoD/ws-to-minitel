@@ -31,124 +31,93 @@ import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.pingInterval
 import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.websocket.Frame
-import io.ktor.websocket.readBytes
-import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import kotlinx.io.asSink
+import kotlinx.io.asSource
+import kotlinx.io.buffered
+import org.jraf.klibminitel.core.Minitel
 import org.jraf.wstominitel.arguments.Arguments
 import org.jraf.wstominitel.util.insecureSocketFactory
 import org.jraf.wstominitel.util.logd
 import org.jraf.wstominitel.util.naiveTrustManager
-import org.jraf.wstominitel.util.readWithTimeout
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.io.InputStream
-import java.io.OutputStream
-import kotlin.concurrent.thread
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-@OptIn(ExperimentalStdlibApi::class)
 private class WsToMinitel(
   private val arguments: Arguments,
 ) {
-  private val output: OutputStream = arguments.output?.let { FileOutputStream(it) } ?: System.out
-  private val input: InputStream = arguments.input?.let { FileInputStream(it) } ?: System.`in`
-
-  private val keyboardChannel = Channel<ByteArray>(0)
+  private val minitel = Minitel(
+    keyboard = (arguments.input?.let { FileInputStream(it) } ?: System.`in`).asSource().buffered(),
+    screen = (arguments.output?.let { FileOutputStream(it) } ?: System.out).asSink().buffered(),
+  )
 
   private var frameNumber = 0
 
+  private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
   suspend fun run() {
-    disableAcknowledgement()
-    disableEnableLocalEcho()
-    startKeyboardLoopThread()
-    startWebSocketClient()
+    minitel.connect {
+      disableAcknowledgement()
+      disableEnableLocalEcho(arguments.localEcho)
+      var webSocketJob = coroutineScope.launch { startWebSocketClient(this@connect) }
+
+      system.collect { systemEvent ->
+        if (systemEvent is Minitel.SystemEvent.TurnedOnEvent) {
+          logd("Turned on: restarting WebSocket client")
+          webSocketJob.cancel()
+          disableAcknowledgement()
+          disableEnableLocalEcho(arguments.localEcho)
+          webSocketJob = coroutineScope.launch { startWebSocketClient(this@connect) }
+        }
+      }
+    }
   }
 
-  private fun disableAcknowledgement() {
+  private suspend fun Minitel.Connection.disableAcknowledgement() {
     logd("Sending disable acknowledgement command")
-    // ESC, PRO2, NON_DIFFUSION, EMET_ECRAN
-    output.write(byteArrayOf(0x1B, 0x3A, 0x64, 0x50))
-
-    // ESC, PRO2, NON_DIFFUSION, EMET_PRISE
-    output.write(byteArrayOf(0x1B, 0x3A, 0x64, 0x53))
-    output.flush()
+    screen.disableAcknowledgement()
   }
 
-  private fun disableEnableLocalEcho() {
-    when (arguments.localEcho) {
+  private suspend fun Minitel.Connection.disableEnableLocalEcho(echo: Arguments.LocalEcho?) {
+    when (echo) {
       Arguments.LocalEcho.ON -> {
         logd("Sending local echo ON command")
-        // ESC, PRO3, AIGUILLAGE_ON, RCPT_ECRAN, EMET_MODEM
-        output.write(byteArrayOf(0x1B, 0x3B, 0x61, 0x58, 0x52))
-        output.flush()
+        screen.localEcho(true)
       }
 
       Arguments.LocalEcho.OFF -> {
         logd("Sending local echo OFF command")
-        // ESC, PRO3, AIGUILLAGE_OFF, RCPT_ECRAN, EMET_MODEM
-        output.write(byteArrayOf(0x1B, 0x3B, 0x60, 0x58, 0x52))
-        output.flush()
+        screen.localEcho(false)
       }
 
       null -> {}
     }
   }
 
-  private fun startKeyboardLoopThread() {
-    thread(name = "ws-to-minitel Read Keyboard Loop") {
-      while (true) {
-        val firstByte = input.read()
-        if (firstByte == -1) {
-          logd("End of keyboard input")
-          break
-        }
-        val isPrintable = firstByte in 0x20..0x7E
-        var remainingBytes = ByteArray(8)
-        if (!isPrintable) {
-          // We got a special key, read the next few bytes before sending them
-          val len = input.readWithTimeout(remainingBytes, 500.milliseconds)
-          if (len == -1) {
-            logd("End of keyboard input")
-            break
-          }
-          remainingBytes = remainingBytes.copyOf(len)
-        }
-        val buffer = if (!isPrintable) {
-          byteArrayOf(firstByte.toByte()) + remainingBytes
-        } else {
-          byteArrayOf(firstByte.toByte())
-        }
-
-        @OptIn(ExperimentalStdlibApi::class)
-        logd("Read from keyboard: ${buffer.size} bytes (${buffer.joinToString { it.toHexString() }})")
-        runBlocking {
-          keyboardChannel.send(buffer)
-        }
+  private fun createHttpClient() = HttpClient(OkHttp) {
+    engine {
+      config {
+        sslSocketFactory(insecureSocketFactory, naiveTrustManager)
       }
+    }
+
+    install(WebSockets) {
+      pingInterval = 30.seconds
     }
   }
 
-  private suspend fun startWebSocketClient() {
-    val client = HttpClient(OkHttp) {
-      engine {
-        config {
-          sslSocketFactory(insecureSocketFactory, naiveTrustManager)
-        }
-      }
-
-      install(WebSockets) {
-        pingInterval = 30.seconds
-      }
-    }
-
-    client.use {
+  private suspend fun startWebSocketClient(connection: Minitel.Connection) {
+    createHttpClient().use {
       it.webSocket(arguments.url) {
         launch {
-          for (readBytes in keyboardChannel) {
+          connection.keyboard.collect {
+            val readBytes = it.raw()
             logd("Sending: ${readBytes.size} keyboard bytes")
             outgoing.send(Frame.Text(true, readBytes))
           }
@@ -156,20 +125,11 @@ private class WsToMinitel(
 
         while (true) {
           when (val frame = incoming.receive()) {
-            is Frame.Text -> {
-              val data = frame.readBytes()
-              logd("Received Text frame (${data.size} bytes)")
-              saveFrame(data)
-              output.write(data)
-              output.flush()
-            }
-
-            is Frame.Binary -> {
+            is Frame.Text, is Frame.Binary -> {
               val data = frame.data
-              logd("Received Binary frame (${data.size} bytes)")
+              logd("Received ${frame::class.simpleName} frame (${data.size} bytes)")
               saveFrame(data)
-              output.write(data)
-              output.flush()
+              connection.screen.raw(data)
             }
 
             is Frame.Close -> {
@@ -187,9 +147,10 @@ private class WsToMinitel(
   }
 
   private fun saveFrame(readBytes: ByteArray) {
-    if (arguments.saveFramesToFiles != null) {
+    val saveFramesToFiles = arguments.saveFramesToFiles
+    if (saveFramesToFiles != null) {
       val frameNumberPadded = frameNumber.toString().padStart(3, '0')
-      val dir = File(arguments.saveFramesToFiles)
+      val dir = File(saveFramesToFiles)
       dir.mkdirs()
       val file = dir.resolve("frame-$frameNumberPadded.vdt")
       logd("Saving frame to $file")
