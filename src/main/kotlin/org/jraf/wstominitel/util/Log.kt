@@ -26,16 +26,8 @@
 package org.jraf.wstominitel.util
 
 import org.slf4j.LoggerFactory
-import org.slf4j.simple.SimpleLogger
 
-private val LOGGER = run {
-  // This must be done before any logger is initialized
-  System.setProperty(SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "trace")
-  System.setProperty(SimpleLogger.SHOW_DATE_TIME_KEY, "true")
-  System.setProperty(SimpleLogger.DATE_TIME_FORMAT_KEY, "yyyy-MM-dd HH:mm:ss")
-
-  LoggerFactory.getLogger("Main")
-}
+private val LOGGER = LoggerFactory.getLogger("Main")
 
 fun logd(s: String) {
   LOGGER.debug(s)

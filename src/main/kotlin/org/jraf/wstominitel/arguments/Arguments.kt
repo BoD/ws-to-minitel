@@ -66,7 +66,20 @@ class Arguments(av: Array<String>) {
     type = ArgType.String,
     fullName = "save-frames",
     shortName = "s",
-    description = "Save received frames to files in the specified directory. Files will be named frame-<frame number>.vdt."
+    description = "Save received frames to files in the specified directory. Files will be named frame-<frame number>.vdt.",
+  )
+
+  enum class LogLevel {
+    DEBUG,
+    WARN,
+    NONE,
+  }
+
+  val logLevel: LogLevel? by parser.option(
+    type = ArgType.Choice<LogLevel>(),
+    fullName = "log-level",
+    shortName = "l",
+    description = "Set the log level. By default, only warnings are logged.",
   )
 
   init {

@@ -31,9 +31,11 @@ import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.pingInterval
 import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.websocket.Frame
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.io.asSink
 import kotlinx.io.asSource
@@ -42,11 +44,15 @@ import org.jraf.klibminitel.core.Minitel
 import org.jraf.wstominitel.arguments.Arguments
 import org.jraf.wstominitel.util.insecureSocketFactory
 import org.jraf.wstominitel.util.logd
+import org.jraf.wstominitel.util.logi
+import org.jraf.wstominitel.util.logw
 import org.jraf.wstominitel.util.naiveTrustManager
+import org.slf4j.simple.SimpleLogger
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 private class WsToMinitel(
@@ -62,10 +68,15 @@ private class WsToMinitel(
   private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
   suspend fun run() {
+    val logLevel = arguments.logLevel ?: Arguments.LogLevel.WARN
+    initLogs(logLevel)
+
+    logi("BoD ws-to-minitel v1.0.0")
+
     minitel.connect {
       disableAcknowledgement()
       disableEnableLocalEcho(arguments.localEcho)
-      var webSocketJob = coroutineScope.launch { startWebSocketClient(this@connect) }
+      var webSocketJob = coroutineScope.launch { keepWebSocketClientConnected(this@connect) }
 
       system.collect { systemEvent ->
         if (systemEvent is Minitel.SystemEvent.TurnedOnEvent) {
@@ -73,10 +84,23 @@ private class WsToMinitel(
           webSocketJob.cancel()
           disableAcknowledgement()
           disableEnableLocalEcho(arguments.localEcho)
-          webSocketJob = coroutineScope.launch { startWebSocketClient(this@connect) }
+          webSocketJob = coroutineScope.launch { keepWebSocketClientConnected(this@connect) }
         }
       }
     }
+  }
+
+  private fun initLogs(logLevel: Arguments.LogLevel) {
+    System.setProperty(
+      SimpleLogger.DEFAULT_LOG_LEVEL_KEY,
+      when (logLevel) {
+        Arguments.LogLevel.DEBUG -> "trace"
+        Arguments.LogLevel.WARN -> "info"
+        Arguments.LogLevel.NONE -> "off"
+      },
+    )
+    System.setProperty(SimpleLogger.SHOW_DATE_TIME_KEY, "true")
+    System.setProperty(SimpleLogger.DATE_TIME_FORMAT_KEY, "yyyy-MM-dd HH:mm:ss")
   }
 
   private suspend fun Minitel.Connection.disableAcknowledgement() {
@@ -110,6 +134,20 @@ private class WsToMinitel(
     install(WebSockets) {
       pingInterval = 30.seconds
     }
+  }
+
+  private suspend fun keepWebSocketClientConnected(connection: Minitel.Connection, times: Int = 10) {
+    repeat(times) {
+      try {
+        startWebSocketClient(connection)
+      } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        logw(e, "WebSocket client failed, retrying in 10 seconds")
+        delay(10.seconds)
+      }
+    }
+    logw("WebSocket client failed $times times, sleeping forever")
+    delay(Duration.INFINITE)
   }
 
   private suspend fun startWebSocketClient(connection: Minitel.Connection) {
@@ -164,7 +202,6 @@ private class WsToMinitel(
 }
 
 suspend fun main(av: Array<String>) {
-  logd("BoD ws-to-minitel v1.0.0")
   val arguments = Arguments(av)
   WsToMinitel(arguments).run()
 }
