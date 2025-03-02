@@ -7,7 +7,7 @@
  *                              /___/
  * repository.
  *
- * Copyright (C) 2024-present Benoit 'BoD' Lubek (BoD@JRAF.org)
+ * Copyright (C) 2025-present Benoit 'BoD' Lubek (BoD@JRAF.org)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,28 +23,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package org.jraf.wstominitel.util
+package org.jraf.wstominitel.http
 
-import org.slf4j.LoggerFactory
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.curl.Curl
+import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.plugins.websocket.pingInterval
+import kotlin.time.Duration.Companion.seconds
 
-private val LOGGER = LoggerFactory.getLogger("Main")
+actual fun createHttpClient(): HttpClient {
+  return HttpClient(Curl) {
+    engine {
+      sslVerify = false
+    }
 
-fun logd(s: String) {
-  LOGGER.debug(s)
-}
-
-fun logi(s: String) {
-  LOGGER.info(s)
-}
-
-fun logw(t: Throwable, s: String) {
-  LOGGER.warn(s, t)
-}
-
-fun logw(s: String) {
-  LOGGER.warn(s)
-}
-
-fun loge(t: Throwable, s: String) {
-  LOGGER.error(s, t)
+    install(WebSockets) {
+      pingInterval = 30.seconds
+    }
+  }
 }

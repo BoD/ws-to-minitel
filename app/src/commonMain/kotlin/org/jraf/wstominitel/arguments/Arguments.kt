@@ -26,6 +26,7 @@ package org.jraf.wstominitel.arguments
 
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
+import kotlinx.cli.default
 import kotlinx.cli.required
 
 class Arguments(av: Array<String>) {
@@ -38,17 +39,19 @@ class Arguments(av: Array<String>) {
   )
     .required()
 
-  val input: String? by parser.option(
+  val input: String by parser.option(
     type = ArgType.String,
     shortName = "i",
-    description = "Input where to read the keyboard, e.g. /dev/ttyUSB0. By default, the keyboard is read from stdin."
+    description = "Input where to read the keyboard, e.g. /dev/ttyUSB0",
   )
+    .required()
 
-  val output: String? by parser.option(
+  val output: String by parser.option(
     type = ArgType.String,
     shortName = "o",
-    description = "Output where to write the screen, e.g. /dev/ttyUSB1. By default, the screen is written to stdout."
+    description = "Output where to write the screen, e.g. /dev/ttyUSB1",
   )
+    .required()
 
   enum class LocalEcho {
     ON,
@@ -71,16 +74,17 @@ class Arguments(av: Array<String>) {
 
   enum class LogLevel {
     DEBUG,
+    INFO,
     WARN,
     NONE,
   }
 
-  val logLevel: LogLevel? by parser.option(
+  val logLevel: LogLevel by parser.option(
     type = ArgType.Choice<LogLevel>(),
     fullName = "log-level",
     shortName = "l",
-    description = "Set the log level. By default, only warnings are logged.",
-  )
+    description = "Set the log level",
+  ).default(LogLevel.INFO)
 
   init {
     parser.parse(av)
