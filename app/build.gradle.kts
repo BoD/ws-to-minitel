@@ -9,6 +9,7 @@ kotlin {
     binaries {
       executable {
         entryPoint = "org.jraf.wstominitel.main"
+        baseName = "ws-to-minitel"
       }
     }
   }
