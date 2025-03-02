@@ -25,10 +25,6 @@
 
 package org.jraf.wstominitel
 
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.okhttp.OkHttp
-import io.ktor.client.plugins.websocket.WebSockets
-import io.ktor.client.plugins.websocket.pingInterval
 import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.websocket.Frame
 import kotlinx.coroutines.CancellationException
@@ -37,21 +33,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.io.asSink
-import kotlinx.io.asSource
+import kotlinx.coroutines.runBlocking
 import kotlinx.io.buffered
+import kotlinx.io.files.Path
+import kotlinx.io.files.SystemFileSystem
 import org.jraf.klibminitel.core.Minitel
 import org.jraf.wstominitel.arguments.Arguments
-import org.jraf.wstominitel.util.insecureSocketFactory
+import org.jraf.wstominitel.http.createHttpClient
+import org.jraf.wstominitel.util.LogLevel
 import org.jraf.wstominitel.util.logd
 import org.jraf.wstominitel.util.logi
 import org.jraf.wstominitel.util.logw
-import org.jraf.wstominitel.util.naiveTrustManager
-import org.slf4j.simple.SimpleLogger
-import java.io.BufferedOutputStream
-import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -59,8 +51,8 @@ private class WsToMinitel(
   private val arguments: Arguments,
 ) {
   private val minitel = Minitel(
-    keyboard = (arguments.input?.let { FileInputStream(it) } ?: System.`in`).asSource().buffered(),
-    screen = (arguments.output?.let { FileOutputStream(it) } ?: System.out).asSink().buffered(),
+    keyboardFilePath = arguments.input,
+    screenFilePath = arguments.output,
   )
 
   private var frameNumber = 0
@@ -68,7 +60,7 @@ private class WsToMinitel(
   private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
   suspend fun run() {
-    val logLevel = arguments.logLevel ?: Arguments.LogLevel.WARN
+    val logLevel = arguments.logLevel
     initLogs(logLevel)
 
     logi("BoD ws-to-minitel v1.0.0")
@@ -91,16 +83,12 @@ private class WsToMinitel(
   }
 
   private fun initLogs(logLevel: Arguments.LogLevel) {
-    System.setProperty(
-      SimpleLogger.DEFAULT_LOG_LEVEL_KEY,
-      when (logLevel) {
-        Arguments.LogLevel.DEBUG -> "trace"
-        Arguments.LogLevel.WARN -> "info"
-        Arguments.LogLevel.NONE -> "off"
-      },
-    )
-    System.setProperty(SimpleLogger.SHOW_DATE_TIME_KEY, "true")
-    System.setProperty(SimpleLogger.DATE_TIME_FORMAT_KEY, "yyyy-MM-dd HH:mm:ss")
+    org.jraf.wstominitel.util.logLevel = when (logLevel) {
+      Arguments.LogLevel.DEBUG -> LogLevel.DEBUG
+      Arguments.LogLevel.INFO -> LogLevel.INFO
+      Arguments.LogLevel.WARN -> LogLevel.WARNING
+      Arguments.LogLevel.NONE -> LogLevel.NONE
+    }
   }
 
   private suspend fun Minitel.Connection.disableAcknowledgement() {
@@ -124,27 +112,16 @@ private class WsToMinitel(
     }
   }
 
-  private fun createHttpClient() = HttpClient(OkHttp) {
-    engine {
-      config {
-        sslSocketFactory(insecureSocketFactory, naiveTrustManager)
-      }
-    }
-
-    install(WebSockets) {
-      pingInterval = 30.seconds
-    }
-  }
-
   private suspend fun keepWebSocketClientConnected(connection: Minitel.Connection, times: Int = 10) {
     repeat(times) {
       try {
         startWebSocketClient(connection)
       } catch (e: Exception) {
         if (e is CancellationException) throw e
-        logw(e, "WebSocket client failed, retrying in 10 seconds")
-        delay(10.seconds)
+        logw(e, "WebSocket client failed")
       }
+      logd("Retrying WebSocket in 10 seconds")
+      delay(10.seconds)
     }
     logw("WebSocket client failed $times times, sleeping forever")
     delay(Duration.INFINITE)
@@ -186,22 +163,24 @@ private class WsToMinitel(
 
   private fun saveFrame(readBytes: ByteArray) {
     val saveFramesToFiles = arguments.saveFramesToFiles
-    if (saveFramesToFiles != null) {
-      val frameNumberPadded = frameNumber.toString().padStart(3, '0')
-      val dir = File(saveFramesToFiles)
-      dir.mkdirs()
-      val file = dir.resolve("frame-$frameNumberPadded.vdt")
-      logd("Saving frame to $file")
-      BufferedOutputStream(FileOutputStream(file)).use {
-        it.write(readBytes)
-        it.flush()
-      }
-      frameNumber++
+    if (saveFramesToFiles == null) return
+    val frameNumberPadded = frameNumber.toString().padStart(3, '0')
+
+    val dir = Path(saveFramesToFiles)
+    SystemFileSystem.createDirectories(dir)
+    val file = Path(saveFramesToFiles, "frame-$frameNumberPadded.vdt")
+    logi("Saving frame to $file")
+    SystemFileSystem.sink(file).buffered().use {
+      it.write(readBytes)
+      it.flush()
     }
+    frameNumber++
   }
 }
 
-suspend fun main(av: Array<String>) {
+fun main(av: Array<String>) {
   val arguments = Arguments(av)
-  WsToMinitel(arguments).run()
+  runBlocking {
+    WsToMinitel(arguments).run()
+  }
 }

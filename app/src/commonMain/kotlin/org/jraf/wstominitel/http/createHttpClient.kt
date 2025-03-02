@@ -7,7 +7,7 @@
  *                              /___/
  * repository.
  *
- * Copyright (C) 2024-present Benoit 'BoD' Lubek (BoD@JRAF.org)
+ * Copyright (C) 2025-present Benoit 'BoD' Lubek (BoD@JRAF.org)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,21 +23,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package org.jraf.wstominitel.util
+package org.jraf.wstominitel.http
 
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManager
-import javax.net.ssl.X509TrustManager
+import io.ktor.client.HttpClient
 
-val naiveTrustManager = object : X509TrustManager {
-  override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-  override fun checkClientTrusted(certs: Array<X509Certificate>, authType: String) = Unit
-  override fun checkServerTrusted(certs: Array<X509Certificate>, authType: String) = Unit
-}
-
-val insecureSocketFactory = SSLContext.getInstance("TLS").apply {
-  val trustAllCerts = arrayOf<TrustManager>(naiveTrustManager)
-  init(null, trustAllCerts, SecureRandom())
-}.socketFactory
+expect fun createHttpClient(): HttpClient
