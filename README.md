@@ -27,13 +27,13 @@ If your Minitel is connected to a Linux computer (e.g. a Raspberry Pi) you can u
 the 32 or 64 bits version depending on your system. For other systems, a JVM version is available.
 
 ```
-ws-to-minitel --url <WebSocket URL> --input-output <Minitel device>
+./ws-to-minitel --url <WebSocket URL> --input-output <Minitel device>
 ```
 
 For example, if your Minitel is connected to `/dev/ttyUSB0` and you want to connect to [MiniPAVI](https://www.minipavi.fr/):
 
 ```
-ws-to-minitel --url ws://go.minipavi.fr:8182 --input-output /dev/ttyUSB0
+./ws-to-minitel --url ws://go.minipavi.fr:8182 --input-output /dev/ttyUSB0
 ```
 
 ### Options
