@@ -13,12 +13,28 @@ kotlin {
       }
     }
   }
+  linuxArm64 {
+    binaries {
+      executable {
+        entryPoint = "org.jraf.wstominitel.main"
+        baseName = "ws-to-minitel"
+      }
+    }
+  }
+  macosArm64 {
+    binaries {
+      executable {
+        entryPoint = "org.jraf.wstominitel.main"
+        baseName = "ws-to-minitel"
+      }
+    }
+  }
 
   sourceSets {
-    val commonMain by getting {
+    commonMain {
       dependencies {
         // Argument parsing
-        implementation(KotlinX.cli)
+        implementation("com.github.ajalt.clikt:clikt:_")
 
         // Date/time
         implementation(KotlinX.datetime)
@@ -36,7 +52,7 @@ kotlin {
       }
     }
 
-    val jvmMain by getting {
+    jvmMain {
       dependencies {
         // Ktor client
         implementation(Ktor.client.okHttp)
@@ -46,7 +62,7 @@ kotlin {
       }
     }
 
-    val linuxX64Main by getting {
+    nativeMain {
       dependencies {
         // Ktor client
         // Note: on Linux we need libcurl installed, e.g.:

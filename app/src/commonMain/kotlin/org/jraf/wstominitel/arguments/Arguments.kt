@@ -7,69 +7,93 @@
  *                              /___/
  * repository.
  *
- * Copyright (C) 2021-present Benoit 'BoD' Lubek (BoD@JRAF.org)
+ * Copyright (C) 2025-present Benoit 'BoD' Lubek (BoD@JRAF.org)
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 package org.jraf.wstominitel.arguments
 
-import kotlinx.cli.ArgParser
-import kotlinx.cli.ArgType
-import kotlinx.cli.default
-import kotlinx.cli.required
+import com.github.ajalt.clikt.core.CliktCommand
+import com.github.ajalt.clikt.core.context
+import com.github.ajalt.clikt.output.MordantHelpFormatter
+import com.github.ajalt.clikt.parameters.groups.OptionGroup
+import com.github.ajalt.clikt.parameters.groups.cooccurring
+import com.github.ajalt.clikt.parameters.options.default
+import com.github.ajalt.clikt.parameters.options.option
+import com.github.ajalt.clikt.parameters.options.required
+import com.github.ajalt.clikt.parameters.types.enum
 
-class Arguments(av: Array<String>) {
-  private val parser = ArgParser("ws-to-minitel")
+class Arguments : CliktCommand("ws-to-minitel") {
+  init {
+    context {
+      helpFormatter = { MordantHelpFormatter(it, showDefaultValues = true) }
+    }
+  }
 
-  val url: String by parser.option(
-    type = ArgType.String,
-    shortName = "u",
-    description = "WebSocket URL to connect to, e.g. wss://example.com/ws:8080"
+  val url: String by option(
+    "-u",
+    "--url",
+    metavar = "url",
+    help = "WebSocket URL to connect to, e.g. wss://example.com:8080/ws",
   )
     .required()
 
-  val input: String by parser.option(
-    type = ArgType.String,
-    shortName = "i",
-    description = "Input where to read the keyboard, e.g. /dev/ttyUSB0",
-  )
-    .required()
+  class SeparateInputOutputOptions : OptionGroup() {
+    val input: String by option(
+      "-i",
+      "--input",
+      metavar = "file",
+      help = "File where to read from the keyboard, e.g. /dev/ttyUSB0. Either --input-output or both --input and --output must be provided.",
+    )
+      .required()
+    val output: String by option(
+      "-o",
+      "--output",
+      metavar = "file",
+      help = "File where to write to the screen, e.g. /dev/ttyUSB0. Either --input-output or both --input and --output must be provided.",
+    )
+      .required()
+  }
 
-  val output: String by parser.option(
-    type = ArgType.String,
-    shortName = "o",
-    description = "Output where to write the screen, e.g. /dev/ttyUSB1",
+  val inputOutput: String? by option(
+    "--input-output",
+    "-io",
+    metavar = "file",
+    help = "File where to read from the keyboard and write to the screen, e.g. /dev/ttyUSB0. Either --input-output or both --input and --output must be provided.",
   )
-    .required()
+
+  val separateInputOutput: SeparateInputOutputOptions? by SeparateInputOutputOptions().cooccurring()
 
   enum class LocalEcho {
     ON,
     OFF,
+    NEITHER,
   }
 
-  val localEcho: LocalEcho? by parser.option(
-    type = ArgType.Choice<LocalEcho>(),
-    fullName = "local-echo",
-    shortName = "e",
-    description = "Send an local echo on or off command first. By default, no command is sent."
+  val localEcho: LocalEcho by option(
+    "-e",
+    "--local-echo",
+    help = "Send a local echo on or off command first. By default, local echo off is sent. Use 'neither' to not send any command.",
   )
+    .enum<LocalEcho> { it.name.lowercase() }
+    .default(LocalEcho.OFF)
 
-  val saveFramesToFiles: String? by parser.option(
-    type = ArgType.String,
-    fullName = "save-frames",
-    shortName = "s",
-    description = "Save received frames to files in the specified directory. Files will be named frame-<frame number>.vdt.",
+  val saveFramesToFiles: String? by option(
+    "-s",
+    "--save-frames",
+    help = "Save received frames to files in the specified directory. Files will be named frame-<frame number>.vdt.",
   )
 
   enum class LogLevel {
@@ -79,14 +103,13 @@ class Arguments(av: Array<String>) {
     NONE,
   }
 
-  val logLevel: LogLevel by parser.option(
-    type = ArgType.Choice<LogLevel>(),
-    fullName = "log-level",
-    shortName = "l",
-    description = "Set the log level",
-  ).default(LogLevel.INFO)
+  val logLevel: LogLevel by option(
+    "-l",
+    "--log-level",
+    help = "Set the log level",
+  )
+    .enum<LogLevel> { it.name.lowercase() }
+    .default(LogLevel.INFO)
 
-  init {
-    parser.parse(av)
-  }
+  override fun run() = Unit
 }

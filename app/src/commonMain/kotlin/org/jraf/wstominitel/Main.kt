@@ -7,7 +7,7 @@
  *                              /___/
  * repository.
  *
- * Copyright (C) 2024-present Benoit 'BoD' Lubek (BoD@JRAF.org)
+ * Copyright (C) 2025-present Benoit 'BoD' Lubek (BoD@JRAF.org)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,11 +25,13 @@
 
 package org.jraf.wstominitel
 
+import com.github.ajalt.clikt.core.main
 import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.websocket.Frame
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -42,6 +44,7 @@ import org.jraf.wstominitel.arguments.Arguments
 import org.jraf.wstominitel.http.createHttpClient
 import org.jraf.wstominitel.util.LogLevel
 import org.jraf.wstominitel.util.logd
+import org.jraf.wstominitel.util.loge
 import org.jraf.wstominitel.util.logi
 import org.jraf.wstominitel.util.logw
 import kotlin.time.Duration
@@ -50,11 +53,6 @@ import kotlin.time.Duration.Companion.seconds
 private class WsToMinitel(
   private val arguments: Arguments,
 ) {
-  private val minitel = Minitel(
-    keyboardFilePath = arguments.input,
-    screenFilePath = arguments.output,
-  )
-
   private var frameNumber = 0
 
   private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -65,21 +63,36 @@ private class WsToMinitel(
 
     logi("BoD ws-to-minitel v1.0.0")
 
+    if (arguments.inputOutput == null && arguments.separateInputOutput == null ||
+      arguments.inputOutput != null && arguments.separateInputOutput != null
+    ) {
+      loge("Either --input-output or both --input and --output must be provided, exiting")
+      return
+    }
+
+    val minitel = Minitel(
+      keyboardFilePath = arguments.separateInputOutput?.input ?: arguments.inputOutput!!,
+      screenFilePath = arguments.separateInputOutput?.output ?: arguments.inputOutput!!,
+    )
     minitel.connect {
-      disableAcknowledgement()
-      disableEnableLocalEcho(arguments.localEcho)
-      var webSocketJob = coroutineScope.launch { keepWebSocketClientConnected(this@connect) }
+      var webSocketJob = onMinitelTurnedOn()
 
       system.collect { systemEvent ->
         if (systemEvent is Minitel.SystemEvent.TurnedOnEvent) {
           logd("Turned on: restarting WebSocket client")
           webSocketJob.cancel()
-          disableAcknowledgement()
-          disableEnableLocalEcho(arguments.localEcho)
-          webSocketJob = coroutineScope.launch { keepWebSocketClientConnected(this@connect) }
+          webSocketJob = onMinitelTurnedOn()
         }
       }
     }
+  }
+
+  private suspend fun Minitel.Connection.onMinitelTurnedOn(): Job {
+    disableAcknowledgement()
+    disableEnableLocalEcho(arguments.localEcho)
+    screen.showCursor(false)
+    screen.clearScreenAndHome()
+    return coroutineScope.launch { keepWebSocketClientConnected(this@onMinitelTurnedOn) }
   }
 
   private fun initLogs(logLevel: Arguments.LogLevel) {
@@ -96,7 +109,7 @@ private class WsToMinitel(
     screen.disableAcknowledgement()
   }
 
-  private suspend fun Minitel.Connection.disableEnableLocalEcho(echo: Arguments.LocalEcho?) {
+  private suspend fun Minitel.Connection.disableEnableLocalEcho(echo: Arguments.LocalEcho) {
     when (echo) {
       Arguments.LocalEcho.ON -> {
         logd("Sending local echo ON command")
@@ -108,7 +121,7 @@ private class WsToMinitel(
         screen.localEcho(false)
       }
 
-      null -> {}
+      Arguments.LocalEcho.NEITHER -> {}
     }
   }
 
@@ -179,7 +192,9 @@ private class WsToMinitel(
 }
 
 fun main(av: Array<String>) {
-  val arguments = Arguments(av)
+  val arguments = Arguments()
+  arguments.main(av)
+
   runBlocking {
     WsToMinitel(arguments).run()
   }

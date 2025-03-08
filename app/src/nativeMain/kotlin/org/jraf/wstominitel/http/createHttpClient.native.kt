@@ -28,8 +28,6 @@ package org.jraf.wstominitel.http
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.curl.Curl
 import io.ktor.client.plugins.websocket.WebSockets
-import io.ktor.client.plugins.websocket.pingInterval
-import kotlin.time.Duration.Companion.seconds
 
 actual fun createHttpClient(): HttpClient {
   return HttpClient(Curl) {
@@ -37,8 +35,6 @@ actual fun createHttpClient(): HttpClient {
       sslVerify = false
     }
 
-    install(WebSockets) {
-      pingInterval = 30.seconds
-    }
+    install(WebSockets)
   }
 }

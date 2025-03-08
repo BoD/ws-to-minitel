@@ -28,14 +28,20 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build
 
-      - name: Archive linux binary
+      - name: Archive Linux X64 binary
         uses: actions/upload-artifact@v4
         with:
           path: app/build/bin/linuxX64/releaseExecutable/ws-to-minitel.kexe
-          name: ws-to-minitel.kexe
+          name: ws-to-minitel-linuxX64
 
-      - name: Archive jvm binary
+      - name: Archive Linux Arm64 binary
+        uses: actions/upload-artifact@v4
+        with:
+          path: app/build/bin/linuxArm64/releaseExecutable/ws-to-minitel.kexe
+          name: ws-to-minitel-linuxArm64
+
+      - name: Archive JVM binary
         uses: actions/upload-artifact@v4
         with:
           path: main-jvm/build/distributions/ws-to-minitel-1.0.0.zip
-          name: ws-to-minitel-1.0.0.zip
+          name: ws-to-minitel-jvm

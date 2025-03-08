@@ -1,6 +1,4 @@
-ws-to-minitel-1.0.0/bin/ws-to-minitel \
---input /dev/ttyUSB0 \
---output /dev/ttyUSB0 \
---local-echo off \
+./ws-to-minitel \
+-io /dev/ttyUSB0 \
 --log-level debug \
 --url "$1"
