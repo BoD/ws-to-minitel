@@ -21,6 +21,8 @@ This way you can leave the tool running and just turn your Minitel on when you w
 
 ## Usage
 
+Download the app from the [latest release](https://github.com/BoD/ws-to-minitel/releases/latest) page.
+
 If your Minitel is connected to a Linux computer (e.g. a Raspberry Pi) you can use the binary executable. Please choose either
 the 32 or 64 bits version depending on your system. For other systems, a JVM version is available.
 
