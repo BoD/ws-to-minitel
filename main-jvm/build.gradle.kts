@@ -3,8 +3,8 @@ plugins {
   application
 }
 
-group = "org.jraf"
-version = "1.0.0"
+group = "org.jraf.wstominitel"
+version = "1.0.1"
 
 kotlin {
   jvmToolchain(11)

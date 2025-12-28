@@ -43,7 +43,10 @@ kotlin {
         implementation("org.jetbrains.kotlinx:kotlinx-io-core:_")
 
         // Minitel
-        implementation("org.jraf:klibminitel:_")
+        implementation("org.jraf.klibminitel:klibminitel:_")
+
+        // Logging
+        implementation("org.jraf.klibnanolog:klibnanolog:_")
 
         // Ktor client
         implementation(Ktor.client.core)

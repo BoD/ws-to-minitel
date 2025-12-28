@@ -40,13 +40,13 @@ import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
 import org.jraf.klibminitel.core.Minitel
+import org.jraf.klibnanolog.LogLevel
+import org.jraf.klibnanolog.logd
+import org.jraf.klibnanolog.loge
+import org.jraf.klibnanolog.logi
+import org.jraf.klibnanolog.logw
 import org.jraf.wstominitel.arguments.Arguments
 import org.jraf.wstominitel.http.createHttpClient
-import org.jraf.wstominitel.util.LogLevel
-import org.jraf.wstominitel.util.logd
-import org.jraf.wstominitel.util.loge
-import org.jraf.wstominitel.util.logi
-import org.jraf.wstominitel.util.logw
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -61,7 +61,7 @@ private class WsToMinitel(
     val logLevel = arguments.logLevel
     initLogs(logLevel)
 
-    logi("BoD ws-to-minitel v1.0.0")
+    logi("BoD ws-to-minitel v1.0.1")
 
     if (arguments.inputOutput == null && arguments.separateInputOutput == null ||
       arguments.inputOutput != null && arguments.separateInputOutput != null
@@ -96,7 +96,7 @@ private class WsToMinitel(
   }
 
   private fun initLogs(logLevel: Arguments.LogLevel) {
-    org.jraf.wstominitel.util.logLevel = when (logLevel) {
+    org.jraf.klibnanolog.logLevel = when (logLevel) {
       Arguments.LogLevel.DEBUG -> LogLevel.DEBUG
       Arguments.LogLevel.INFO -> LogLevel.INFO
       Arguments.LogLevel.WARN -> LogLevel.WARNING
@@ -141,11 +141,11 @@ private class WsToMinitel(
   }
 
   private suspend fun startWebSocketClient(connection: Minitel.Connection) {
-    createHttpClient().use {
-      it.webSocket(arguments.url) {
+    createHttpClient().use { httpClient ->
+      httpClient.webSocket(arguments.url) {
         launch {
-          connection.keyboard.collect {
-            val readBytes = it.raw()
+          connection.keyboard.collect { keyboardEvent ->
+            val readBytes = keyboardEvent.raw()
             logd("Sending: ${readBytes.size} keyboard bytes")
             outgoing.send(Frame.Text(true, readBytes))
           }
@@ -175,8 +175,7 @@ private class WsToMinitel(
   }
 
   private fun saveFrame(readBytes: ByteArray) {
-    val saveFramesToFiles = arguments.saveFramesToFiles
-    if (saveFramesToFiles == null) return
+    val saveFramesToFiles = arguments.saveFramesToFiles ?: return
     val frameNumberPadded = frameNumber.toString().padStart(3, '0')
 
     val dir = Path(saveFramesToFiles)
